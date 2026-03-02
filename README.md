@@ -1,81 +1,90 @@
-# SafetyClassify
+# MolecularSafety
 
-Single-turn OpenReward environment for classifying molecular safety across multiple toxicity endpoints from SMILES notation.
+[![OpenReward Environment](https://img.shields.io/badge/%E2%AD%90%20OpenReward-Environment-f7e6cc)](https://openreward.ai/GeneralReasoning/MolecularSafety)
 
-## Task
+## Description
 
-Given a molecule's SMILES string and a safety endpoint, the agent predicts whether the molecule is positive (unsafe/active) or negative (safe/inactive) for that endpoint. One tool call per task.
+**MolecularSafety** is an environment for evaluating agents on molecular safety classification tasks. Given a molecule's SMILES string and a safety endpoint, the agent predicts whether the molecule is safe or unsafe. The dataset pools three toxicity classification datasets from [Therapeutics Data Commons (TDC)](https://tdcommons.ai/single_pred_tasks/tox/): AMES mutagenicity, hERG cardiotoxicity, and ClinTox clinical trial toxicity.
 
-## Data Source
+## Capabilities
 
-All data comes from [Therapeutics Data Commons (TDC)](https://tdcommons.ai/single_pred_tasks/tox/), pooling 3 safety classification datasets:
+- Classifying molecular safety across multiple toxicity endpoints
+- Predicting AMES mutagenicity from molecular structure
+- Predicting hERG cardiotoxicity (potassium channel blocking)
+- Predicting clinical trial toxicity
 
-| Dataset | Property | Classes | Molecules | Source |
-|---------|----------|---------|-----------|--------|
-| AMES | Mutagenicity | 0 = non-mutagenic, 1 = mutagenic | 7,255 | Hansen et al. |
-| hERG_Karim | hERG Cardiotoxicity | 0 = non-blocker, 1 = blocker | 13,445 | Karim et al. |
-| ClinTox | Clinical Trial Toxicity | 0 = non-toxic, 1 = toxic | 1,484 | Gayvert et al. |
+## Compute Requirements
 
-Total pool: ~22,000 molecules. 1,100 sampled (1,000 train + 100 test), shuffled with `random_state=42`.
+MolecularSafety does not require a sandbox. It has minimal compute requirements.
 
-### Property Distribution in Splits
+## License
 
-**Train (1,000 tasks):** hERG Cardiotoxicity (609), AMES Mutagenicity (334), Clinical Trial Toxicity (57).
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (following the TDC dataset licenses).
 
-**Test (100 tasks):** hERG Cardiotoxicity (56), AMES Mutagenicity (34), Clinical Trial Toxicity (10).
+## Tasks
 
-Distribution is proportional to dataset size. Overall class balance is ~48.5% positive.
+There are two splits: train (1,000 tasks) and test (100 tasks), totaling 1,100 tasks. Tasks are pooled from three TDC safety datasets (~22,000 molecules total) with proportional sampling:
 
-## Reward Function
+| Dataset | Property | Classes | Train | Test |
+|---------|----------|---------|-------|------|
+| [AMES](https://tdcommons.ai/single_pred_tasks/tox/#ames-mutagenicity) | Mutagenicity | 0 = non-mutagenic, 1 = mutagenic | 334 | 34 |
+| [hERG_Karim](https://tdcommons.ai/single_pred_tasks/tox/#herg-karim-et-al) | hERG Cardiotoxicity | 0 = non-blocker, 1 = blocker | 609 | 56 |
+| [ClinTox](https://tdcommons.ai/single_pred_tasks/tox/#clintox) | Clinical Trial Toxicity | 0 = non-toxic, 1 = toxic | 57 | 10 |
 
-Binary reward:
+Overall class balance is ~48.5% positive (unsafe).
 
-```
-reward = 1.0 if predicted == actual else 0.0
-```
+## Reward Structure
 
-## Environment API
+This is a sparse, verifiable reward environment with binary scoring. The agent calls `submit_prediction` once with a classification (0 = safe, 1 = unsafe).
 
-- **Splits:** `train` (1,000 tasks), `test` (100 tasks)
-- **Tool:** `submit_prediction(prediction: int)` -- submit 0 (safe) or 1 (unsafe)
-- **Prompt:** Provides SMILES string, safety endpoint name, and class label descriptions
-- **Finished:** Always `True` after one tool call (single-turn)
+- **Correct**: Reward **1.0**.
+- **Incorrect**: Reward **0.0**.
 
-## Files
+We do not use LLM graders for this task.
 
-```
-safetyclassify/
-├── safetyclassify.py   # Environment class (SafetyClassify)
-├── server.py           # Server wrapper
-├── test_agent.py       # OpenAI Responses API test harness
-├── prepare_data.py     # TDC download + JSON generation script
-├── requirements.txt    # openreward, pydantic
-├── Dockerfile
-├── DATA_UPLOAD.md      # Cloud storage upload instructions
-└── data/
-    ├── train.json      # 1,000 training tasks
-    └── test.json       # 100 test tasks
-```
+## Data
 
-## Local Development
+Task data is pooled from three [TDC](https://tdcommons.ai/single_pred_tasks/tox/) toxicity datasets: AMES (Hansen et al.), hERG_Karim (Karim et al.), and ClinTox (Gayvert et al.). Data files are stored on the OpenReward platform.
 
-```bash
-# Generate data (requires PyTDC)
-pip install PyTDC pandas
-python prepare_data.py
+## Tools
 
-# Run server
-pip install -r requirements.txt
-python server.py
+Agents are given a single tool:
 
-# Test with agent
-export OPENAI_API_KEY=...
-python test_agent.py
-```
+- `submit_prediction`: Submit a safety classification (0 = safe/negative, 1 = unsafe/positive). Returns whether the prediction is correct. This tool can only be called once per task.
 
-## Docker
+## Time Horizon
 
-```bash
-docker build -t safetyclassify:test .
-docker run -p 8080:8080 safetyclassify:test
+MolecularSafety is a single-turn environment. The agent receives a molecule's SMILES string and safety endpoint, and submits one classification. Each task requires exactly one tool call.
+
+## Environment Difficulty
+
+[Statistics on environment difficulty here]
+
+## Other Environment Requirements
+
+There are no further environment requirements; MolecularSafety works out of the box with the OpenReward endpoint.
+
+## Safety
+
+Agents in MolecularSafety are asked to classify molecules for toxicity across multiple safety endpoints. The environment does not present direct safety risks, as agents only provide classification predictions with no access to external systems.
+
+However, this is a dual-use domain. Models trained for toxicity prediction capabilities could potentially be misused for designing harmful compounds in other contexts.
+
+## Citations
+
+```bibtex
+@dataset{GRMolecularSafety,
+  author    = {General Reasoning Inc. Team},
+  title     = {MolecularSafety},
+  year      = {2026},
+  publisher = {OpenReward},
+  url       = {https://openreward.ai/GeneralReasoning/MolecularSafety}
+}
+
+@article{huang2021therapeutics,
+  title={Therapeutics Data Commons: Machine learning datasets and tasks for drug discovery and development},
+  author={Huang, Kexin and Fu, Tianfan and Gao, Wenhao and Zhao, Yue and Roohani, Yusuf and Leskovec, Jure and Coley, Connor W and Xiao, Cao and Sun, Jimeng and Zitnik, Marinka},
+  journal={Proceedings of NeurIPS Datasets and Benchmarks},
+  year={2021}
+}
 ```
