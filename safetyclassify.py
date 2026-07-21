@@ -11,8 +11,9 @@ Binary reward: 1.0 for correct classification, 0.0 for incorrect.
 
 import json
 import os
+import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,7 @@ from openreward.environments import (
     Split,
     TextBlock,
     ToolOutput,
+    terminal,
     tool,
 )
 
@@ -65,9 +67,30 @@ class SafetyClassifyTaskSpec(BaseModel):
 
 
 class SubmitClassificationInput(BaseModel):
-    prediction: int = Field(
-        ..., description="Your predicted class: 0 (negative/safe) or 1 (positive/unsafe)"
+    prediction: str = Field(
+        ..., description="Your final message. Include the digit 0 (negative/safe) or 1 (positive/unsafe)."
     )
+
+
+_DIGIT_RE = re.compile(r"(?<![\d.])([01])(?!\.?\d)")
+
+
+def _extract_prediction(text: str) -> Optional[int]:
+    """Extract 0 or 1 from a free-form assistant message.
+
+    Matches a standalone 0/1 (not adjacent to other digits) and returns the
+    LAST such mention. Returns None if no standalone digit is found — chosen
+    over a permissive default because scoring an unrelated digit as a real
+    prediction would silently mislabel refusals and off-topic replies.
+    """
+    matches = _DIGIT_RE.findall(text)
+    return int(matches[-1]) if matches else None
+
+
+_OLD_SUBMIT_LINE = "Submit your prediction as 0 or 1 using the submit_prediction tool."
+_NEW_SUBMIT_LINE = (
+    "Reply with your final answer as an ordinary message. State the digit 0 or 1."
+)
 
 
 class SafetyClassify(Environment):
@@ -105,17 +128,26 @@ class SafetyClassify(Environment):
         ]
 
     async def get_prompt(self) -> List[TextBlock]:
-        return [TextBlock(text=self.validated.question)]
+        question = self.validated.question.replace(_OLD_SUBMIT_LINE, _NEW_SUBMIT_LINE)
+        return [TextBlock(text=question)]
 
+    @terminal
     @tool
     async def submit_prediction(self, params: SubmitClassificationInput) -> ToolOutput:
-        """Submit your safety classification for the molecule (0 = safe, 1 = unsafe)."""
-        predicted = params.prediction
+        """Grade the assistant's final message as a safety classification (0 or 1)."""
+        predicted = _extract_prediction(params.prediction)
         actual = self.answer["value"]
-        correct = predicted == actual
+        correct = predicted is not None and predicted == actual
         reward = 1.0 if correct else 0.0
 
-        if correct:
+        if predicted is None:
+            feedback = (
+                f"No 0/1 prediction found in your message. "
+                f"The molecule is {'positive/unsafe' if actual == 1 else 'negative/safe'} "
+                f"for {self.validated.property_name}.\n"
+                f"Reward: {reward:.1f}"
+            )
+        elif correct:
             feedback = (
                 f"Correct! The molecule is {'positive/unsafe' if actual == 1 else 'negative/safe'} "
                 f"for {self.validated.property_name}.\n"

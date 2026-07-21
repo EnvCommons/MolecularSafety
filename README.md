@@ -35,7 +35,7 @@ Overall class balance is ~48.5% positive (unsafe).
 
 ## Reward Structure
 
-This is a sparse, verifiable reward environment with binary scoring. The agent calls `submit_prediction` once with a classification (0 = safe, 1 = unsafe).
+This is a sparse, verifiable reward environment with binary scoring. The agent replies with an ordinary message stating a digit (0 = safe, 1 = unsafe); the environment extracts the digit and grades it by exact match against the ground truth.
 
 - **Correct**: Reward **1.0**.
 - **Incorrect**: Reward **0.0**.
@@ -48,13 +48,11 @@ Task data is pooled from three [TDC](https://tdcommons.ai/single_pred_tasks/tox/
 
 ## Tools
 
-Agents are given a single tool:
-
-- `submit_prediction`: Submit a safety classification (0 = safe/negative, 1 = unsafe/positive). Returns whether the prediction is correct. This tool can only be called once per task.
+Agents are given no visible tools. The environment uses a `@terminal` tool: the agent's final plain-text message ends the rollout and is graded by extracting the classification digit (0 or 1).
 
 ## Time Horizon
 
-MolecularSafety is a single-turn environment. The agent receives a molecule's SMILES string and safety endpoint, and submits one classification. Each task requires exactly one tool call.
+MolecularSafety is a single-turn environment. The agent receives a molecule's SMILES string and safety endpoint, and replies with a single message stating its classification digit.
 
 ## Environment Difficulty
 

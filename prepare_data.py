@@ -43,7 +43,7 @@ def make_question(smiles: str, ds_info: dict) -> str:
         f"Given the molecule with SMILES notation: {smiles}\n\n"
         f"Predict {ds_info['description']}.\n\n"
         f"Classes: {ds_info['class_labels']}\n\n"
-        f"Submit your prediction as 0 or 1 using the submit_prediction tool."
+        f"Reply with your final answer as an ordinary message. State the digit 0 or 1."
     )
 
 
