@@ -58,6 +58,11 @@ ANSWERS = {
 print(f"Loaded {len(ANSWERS)} SafetyClassify tasks")
 
 
+# Reward for a submission made after the task has already been graded. Negative
+# so repeat submissions are actively discouraged, not merely left unscored.
+REPEAT_SUBMISSION_PENALTY = -0.1
+
+
 class SafetyClassifyTaskSpec(BaseModel):
     task_id: str
     smiles: str
@@ -111,6 +116,13 @@ class SafetyClassify(Environment):
 
         self.answer = ANSWERS[self.validated.task_id]
 
+        # Graded submissions this session. @terminal already hides this tool from
+        # the model, so the harness normally invokes it once at the end of the
+        # rollout -- but Environment._call_tool dispatches by name and does not
+        # exclude terminal tools, so a direct second call would re-grade and pay
+        # out again. Defence in depth.
+        self.submitted = 0
+
     @classmethod
     def list_splits(cls) -> list[Split]:
         return [
@@ -135,6 +147,16 @@ class SafetyClassify(Environment):
     @tool
     async def submit_prediction(self, params: SubmitClassificationInput) -> ToolOutput:
         """Grade the assistant's final message as a safety classification (0 or 1)."""
+        if self.submitted > 0:
+            return ToolOutput(
+                blocks=[TextBlock(text="A prediction has already been submitted for this task. "
+                                       "This episode is over: it is not re-graded, and repeat "
+                                       "submissions are penalised (reward -0.1).")],
+                metadata={"already_submitted": True, "submission_count": self.submitted},
+                reward=REPEAT_SUBMISSION_PENALTY,
+                finished=True,
+            )
+
         predicted = _extract_prediction(params.prediction)
         actual = self.answer["value"]
         correct = predicted is not None and predicted == actual
@@ -160,6 +182,8 @@ class SafetyClassify(Environment):
                 f"for {self.validated.property_name}.\n"
                 f"Reward: {reward:.1f}"
             )
+
+        self.submitted += 1
 
         return ToolOutput(
             blocks=[TextBlock(text=feedback)],
