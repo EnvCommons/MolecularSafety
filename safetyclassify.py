@@ -162,23 +162,22 @@ class SafetyClassify(Environment):
         correct = predicted is not None and predicted == actual
         reward = 1.0 if correct else 0.0
 
+        # The feedback and metadata carry the verdict and the agent's own
+        # prediction, never the dataset label.
         if predicted is None:
             feedback = (
-                f"No 0/1 prediction found in your message. "
-                f"The molecule is {'positive/unsafe' if actual == 1 else 'negative/safe'} "
-                f"for {self.validated.property_name}.\n"
+                f"No 0/1 prediction found in your message.\n"
                 f"Reward: {reward:.1f}"
             )
         elif correct:
             feedback = (
-                f"Correct! The molecule is {'positive/unsafe' if actual == 1 else 'negative/safe'} "
+                f"Correct! You predicted {'positive/unsafe' if predicted == 1 else 'negative/safe'} "
                 f"for {self.validated.property_name}.\n"
                 f"Reward: {reward:.1f}"
             )
         else:
             feedback = (
-                f"Incorrect. You predicted {'positive/unsafe' if predicted == 1 else 'negative/safe'}, "
-                f"but the molecule is {'positive/unsafe' if actual == 1 else 'negative/safe'} "
+                f"Incorrect. You predicted {'positive/unsafe' if predicted == 1 else 'negative/safe'} "
                 f"for {self.validated.property_name}.\n"
                 f"Reward: {reward:.1f}"
             )
@@ -192,7 +191,6 @@ class SafetyClassify(Environment):
                 "smiles": self.validated.smiles,
                 "property_name": self.validated.property_name,
                 "predicted": predicted,
-                "actual": actual,
                 "correct": correct,
             },
             reward=reward,
